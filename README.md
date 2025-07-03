@@ -1,2 +1,7 @@
 # linux-articles
-a collection of standalone Linux-related articles on a variety of topics
+
+This is a repo to host various Linux-related articles, documents, and other things which are not code.
+
+Current contents:
+
+* 
