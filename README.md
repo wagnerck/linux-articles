@@ -1,6 +1,6 @@
 # linux-articles
 
-Christian Wagner - wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : everything here is written by a human being and not a language model
+Christian Wagner : wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : everything here is written by a human being and not a language model
 
 This is a repo to host various Linux-related articles, documents, and other things which are not code.
 
