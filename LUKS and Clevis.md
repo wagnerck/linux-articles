@@ -1,20 +1,22 @@
 # Auto-unlocking a LUKS-encrypted root volume with Clevis and a TPM (Debian/Ubuntu)
 
-_v1_ : 07/03/2025 : Christian Wagner - wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : written by a human being and not a language model
+_v1.1_ : 07/06/2025 : Christian Wagner : wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : written by a human being and not a language model
 
 The ability for Windows and Mac OS to automatically unlock an encrypted boot volume using security hardware (a TPM on PC equipment, the T2 chip on recent Macs) is a feature that Linux distributions mostly lack by default. You can implement this functionality yourself on most Linux installs, using a number of different tools (like `systemd-cryptenroll` and others), but these implementations can tend to be fragile. It becomes easy to lock yourself out of your boot device if something goes slightly wrong, and the initial configuration can be difficult and risky.
 
-This article outlines a very quick and relatively robust method for automatically unlocking a LUKS-encrypted root volume via a Trusted Platform Module on Debian Linux (tested on version 12 "Bookworm" and up) and on Ubuntu (tested on v24.04 LTS "Noble Numbat" and up). It uses the Clevis decryption framework and makes minimal changes to the existing configuration; specifically, it works with traditional `mkinitramfs` and does not require switching to Dracut or another toolset for creating a boot image. It only uses packages from the default repositories, and does not require modifying any system files like `/etc/crypttab`. It can be configured with varying kinds of seals on the encryption keys (known as "PCRs"), so that hardware or firmware modifications will prevent the auto-unlock from occurring. And, most importantly I believe, it also leaves the existing method for manual unlocking in place, so the root volume can still be accessed if something goes awry (like one of the seals getting triggered accidentally).
+This article outlines a very quick and relatively robust method for automatically unlocking a LUKS-encrypted root volume via a Trusted Platform Module on Debian Linux (tested on version 12 "Bookworm" and up) and on Ubuntu (tested on v24.04 LTS "Noble Numbat" and up). It uses the Clevis decryption framework and makes minimal changes to the existing configuration; specifically, it works with traditional `mkinitramfs` and does not require switching to Dracut or another toolset for creating a boot image. It only uses packages from the default repositories, and does not require modifying any system files like `/etc/crypttab`. It can be configured with varying kinds of cryptographic seals on the encryption keys (known as "PCRs"), so that hardware or firmware modifications will prevent the auto-unlock from occurring. And, most importantly I believe, it also leaves the existing method for manual unlocking in place, so the root volume can still be accessed if something goes awry (like one of the seals getting triggered accidentally).
 
 Due to a lack of time and hardware resources, this method has only been tested on on actual physical hardware with Debian 13 "Trixie", with the other configurations tested in virtual machines. Additional testing by other folks would be great to hear about.
 
-This method requires a supported Linux distro, a PC or virtual machine with a Trusted Platform Module (v2), and an existing encrypted root volume, preferably set up by the distro installer using LUKS and LVM during the initial system install, as those volumes will be the most consistent. These are the tested configurations:
+This method requires a supported Linux distro, a PC or virtual machine with a Trusted Platform Module (v2), and an existing encrypted root volume, preferably set up by the distro installer using LUKS and LVM during the initial system install, as those volumes will be the most consistent. It is technically possible to use this method on a system that has a TPM but does not use Secure Boot, but this is not recommended and has not been tested by the author of this article.
+
+These are the tested distributions and their partition setups:
 
 * _Debian 12 and 13 installers_: choose the "Guided - Use entire disk and set up encrypted LVM" option
 * _Ubuntu 24.04 LTS installer_: choose "Advanced Features" on the "Disk setup" page, and then "Use LVM and encryption"
 * _Ubuntu 25.04 installer_: select "Encrypt with a passphrase" during the installation process
 
-Encrypting an existing cleartext root partition, using more complicated LUKS/LVM configurations, using Clevis on other distributions, or using other drive encryption methods are currently outside the scope of this guide. These instructions should also not be performed on any system that already has an auto-unlock method configured, like with `systemd-cryptenroll` or a similar tool.
+Encrypting an existing cleartext root partition, using more complicated LUKS/LVM configurations, using Clevis on other distributions, or using other drive encryption methods are currently outside the scope of this guide. These instructions should also not be performed on any system that already has an auto-unlock method configured, like with `systemd-cryptenroll` or a similar tool. These instructions are _not recommended_ for use on remote servers where physical access is not available, unless alternative methods for accessing the boot console are available (like remote KVM, a BMC, an SSH server in the boot image via DropBear, or others).
 
 ---
 
@@ -121,7 +123,7 @@ That should be everything you need to do. On restart, you will still see the unl
 
 Let's start with explaining what LUKS is in the first place. Linux Unified Key Setup (LUKS) is a specification for drive encryption that allows the use of multiple decryption keys for the same volume, and the changing of those keys without having to re-encrypt the drive. This lets a drive be unlocked in multiple ways, like using as a manually-entered passphrase, or a decryption key retrieved from a Trusted Platform Module.
 
-The TPM is a piece of hardware, embedded in nearly all modern PCs, that allows for the secure storage and retrieval of encryption and decryption keys. It includes a feature called Platform Configuration Registers (PCRs), which indicate the current security status of the hardware: whether Secure Boot is on or off, the presence of specific hardware configuration details, the version of the firmware, the boot loader setup, and many other measurements of the state of the system.
+The TPM is a piece of hardware, embedded in nearly all modern PCs, that allows for the secure storage and retrieval of encryption and decryption keys. It includes a feature called Platform Configuration Registers (PCRs), which use a cryptographic hash value to indicate the current security status of the hardware: whether Secure Boot is on or off, the presence of specific hardware configuration details, the version of the firmware, the boot loader setup, and many other measurements of the state of the system.
 
 Like everything related to cryptography, this is extremely complicated in its implementation, but in short: a decryption key stored in the TPM can be sealed behind a specific set of PCRs, so that if aspects of the system change, that key will no longer be available. For example, if a decryption key is sealed behind the status of Secure Boot (as in the command in the quick install), and Secure Boot is then later disabled, then the TPM will no longer deliver the key.
 
@@ -137,7 +139,7 @@ clevis luks bind -d /dev/device tpm2 '{"pcr_bank":"sha256", "pcr_ids":"1,7"}'
 
 When this command is run, it is "binding" a particular decryption method to a specific encrypted storage device, so that the Clevis framework knows how to automatically unlock it, and "sealing" the key inside the TPM at the same time. Let's break it down further.
 
-`clevis` is the executeable file called by the operating system, `luks` is the command noun that tells Clevis that we will be operating on an encrypted LUKS device, and `bind` is the command verb that tells Clevis that we will be binding that device to a decryption method (or "policy" as the Clevis documentation calls it).
+`clevis` is the executable file called by the operating system, `luks` is the command noun that tells Clevis that we will be operating on an encrypted LUKS device, and `bind` is the command verb that tells Clevis that we will be binding that device to a decryption method (or "policy" as the Clevis documentation calls it).
 
 `-d /dev/device` is the parameter that specifies the LUKS device in question, and `tpm2` is the policy type, where we store and seal a decryption key in the TPM. Most systems only have one TPM, so we don't normally have to specify which one to use.
 
@@ -157,14 +159,21 @@ The `clevis-initramfs` package adds a "hook" to the toolchain that Linux uses to
 
 What's interesting about Clevis is that it can coexist with other methods for unlocking the root volume, so that if something goes wrong, the regular methods (like manually entering in a passphrase) will continue to work, since they are implemented with other tools entirely. This makes it more robust than some other auto-unlock options, although some people are likely to dislike the fact that the manual unlock prompt still appears even as the drive is being automatically unlocked.
 
+### What can cause auto-unlock to stop working accidentally?
+
+The normal reason for Clevis to fail to retrieve a LUKS decryption key is that something has triggered a configured seal, such as changes in hardware or software that cause the calculated hash value of a PCR to change. The PCRs that seal an encryption key are usually chosen to make it more difficult, if not impossible, to remove the physical drive and place it in a different computer in an attempt to bypass the drive encryption, with PCRs one (firmware configuration) and seven (Secure Boot status) being common choices.
+
+But there can be circumstances where the keys can end up sealed without a substantial change in hardware or firmware. For example, on _some_ systems updating a Debian package like `shim-signed` can cause the TPM to re-calculate the Secure Boot PCR, and therefore seal the decryption keys. This is most likely to happen during a major operating system upgrade (such as from Debian 12 "Bookworm" to Debian 13 "Trixie"), but it doesn't _always_ happen. This is possible because different Secure Boot firmware implementations may calculate the PCRs differently, with some including the Secure Boot shim that Debian and Ubuntu Linux uses, and some not.
+
+And that lets us segue nicely into the next section:
 
 
 
 ## Repairing a broken Clevis seal:
 
-If the sealed encryption key becomes unavailable because a change in the PCR registers triggers a seal, the manual unlock mechanism (i.e. typing in the passphrase instead) should continue to work even if the Clevis auto-unlock does not. Undoing whatever caused the change to the PCR status should usually re-enable the auto-unlock.
+If the sealed encryption key becomes unavailable because a change in the PCR hash value triggers a seal (deliberately or accidentally), the manual unlock mechanism (i.e. typing in the passphrase instead) should continue to work even if the Clevis auto-unlock does not. Undoing whatever caused the change to the PCR status should usually re-enable the auto-unlock.
 
-In a situation where the change cannot be undone, or where the change was deliberate and needs to remain, the sealed encryption passphrase can be deleted and re-created to use the new PCR values. This procedure may also be required after a major operating system upgrade, but that usually depends on what PCRs you chose for the seal.
+In a situation where the change cannot be undone, or where the change was deliberate and needs to remain, the sealed encryption passphrase can be deleted and re-created to use the new PCR hash values, after unlocking the boot volume manually.
 
 ### Step one: identify the encrypted root volume again
 
@@ -250,7 +259,7 @@ PCRs 8 and above are typically modified after the boot image loads, and are unli
 
 
 
-## Other sources used in developing this article:
+## Sources used in developing this article:
 
 * [https://github.com/latchset/clevis/](https://github.com/latchset/clevis/) - the Clevis framework itself
 * [https://silvenga.com/posts/tpm-luks-unlock/](https://silvenga.com/posts/tpm-luks-unlock/) - another post on this topic, but with a different focus and a method that uses Dracut instead
