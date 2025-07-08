@@ -1,6 +1,6 @@
 # Auto-unlocking a LUKS-encrypted root volume with Clevis and a TPM (Debian/Ubuntu)
 
-_v1.1_ : 07/06/2025 : Christian Wagner : wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : written by a human being and not a language model
+_v1.2_ : 07/06/2025 : Christian Wagner : wagnerck@fastmail.com : https://rainygarden.net/ : https://github.com/wagnerck : written by a human being and not a language model
 
 The ability for Windows and Mac OS to automatically unlock an encrypted boot volume using security hardware (a TPM on PC equipment, the T2 chip on recent Macs) is a feature that Linux distributions mostly lack by default. You can implement this functionality yourself on most Linux installs, using a number of different tools (like `systemd-cryptenroll` and others), but these implementations can tend to be fragile. It becomes easy to lock yourself out of your boot device if something goes slightly wrong, and the initial configuration can be difficult and risky.
 
@@ -265,3 +265,6 @@ PCRs 8 and above are typically modified after the boot image loads, and are unli
 * [https://silvenga.com/posts/tpm-luks-unlock/](https://silvenga.com/posts/tpm-luks-unlock/) - another post on this topic, but with a different focus and a method that uses Dracut instead
 * [https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/) - the full list of TPM Platform Configuration Registers (PCRs)
 * [https://wiki.archlinux.org/title/Clevis](https://wiki.archlinux.org/title/Clevis) and [https://wiki.archlinux.org/title/Trusted_Platform_Module](https://wiki.archlinux.org/title/Trusted_Platform_Module) - the Arch Linux documentation, ever-useful even for other distros
+
+
+© 2025 by Christian Wagner. This work is licensed via [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
